@@ -1,0 +1,10 @@
+{
+  "name": "FAIISA KantinKu",
+  "short_name": "KantinKu",
+  "description": "Manajemen kantin sekolah",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f5f8f7",
+  "theme_color": "#0f766e",
+  "icons": []
+}

@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f766e">
+  <meta name="description" content="FAIISA KantinKu - Manajemen kantin sekolah">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+  <title>FAIISA KantinKu</title>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark">F</div>
+        <div><strong>FAIISA</strong><small>KantinKu</small></div>
+      </div>
+      <div class="side-label">MENU UTAMA</div>
+      <nav id="nav">
+        <button class="nav-item active" data-page="dashboard"><span>▦</span> Dashboard</button>
+        <button class="nav-item" data-page="kasir"><span>▣</span> Kasir</button>
+        <button class="nav-item" data-page="produk"><span>□</span> Produk & Stok</button>
+        <button class="nav-item" data-page="transaksi"><span>↔</span> Transaksi</button>
+        <button class="nav-item" data-page="keuangan"><span>◫</span> Keuangan</button>
+        <button class="nav-item" data-page="laporan"><span>▤</span> Laporan</button>
+        <button class="nav-item" data-page="pengaturan"><span>⚙</span> Pengaturan</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="connection"><i id="connectionDot"></i><span id="connectionText">Memeriksa koneksi…</span></div>
+        <small>Versi prototipe 0.1</small>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobileMenu" aria-label="Buka menu">☰</button>
+        <div>
+          <div class="eyebrow" id="pageEyebrow">RINGKASAN OPERASIONAL</div>
+          <h1 id="pageTitle">Dashboard</h1>
+        </div>
+        <div class="top-actions">
+          <span class="today" id="todayText"></span>
+          <button class="icon-btn" id="syncBtn" title="Sinkronisasi">↻</button>
+          <div class="avatar">K</div>
+        </div>
+      </header>
+
+      <section class="page active" id="page-dashboard">
+        <div class="welcome">
+          <div><p class="welcome-kicker">FAIISA KANTINKU</p><h2>Selamat bekerja!</h2><p>Ringkasan aktivitas kantin hari ini.</p></div>
+          <div class="welcome-art" aria-hidden="true"><span>Rp</span><b>✓</b><i></i></div>
+        </div>
+        <div class="stat-grid">
+          <article class="stat-card"><div class="stat-top"><span>Omzet hari ini</span><span class="stat-icon teal">↗</span></div><strong id="statOmzet">Rp0</strong><small>Transaksi tersimpan di perangkat ini</small></article>
+          <article class="stat-card"><div class="stat-top"><span>Transaksi hari ini</span><span class="stat-icon blue">▣</span></div><strong id="statTransaksi">0</strong><small>Transaksi selesai</small></article>
+          <article class="stat-card"><div class="stat-top"><span>Produk aktif</span><span class="stat-icon orange">□</span></div><strong id="statProduk">0</strong><small>Produk dalam katalog</small></article>
+          <article class="stat-card"><div class="stat-top"><span>Stok perlu diperiksa</span><span class="stat-icon red">!</span></div><strong id="statStok">0</strong><small>Stok ≤ batas minimum</small></article>
+        </div>
+        <div class="content-grid">
+          <article class="panel">
+            <div class="panel-head"><div><h3>Transaksi terbaru</h3><p>Aktivitas penjualan terakhir di perangkat ini</p></div><button class="text-btn" data-goto="transaksi">Lihat semua →</button></div>
+            <div id="recentTransactions" class="table-wrap"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><h3>Perlu diperiksa</h3><p>Produk dengan stok rendah</p></div><span class="pill warning">Stok</span></div>
+            <div id="lowStockList" class="low-stock-list"></div>
+          </article>
+        </div>
+        <div class="notice"><span class="notice-icon">i</span><div><strong>Mode prototipe</strong><p>Data saat ini disimpan di perangkat ini. Hubungkan proyek Firebase sebelum digunakan untuk data bersama atau operasional nyata.</p></div></div>
+      </section>
+
+      <section class="page" id="page-kasir">
+        <div class="cashier-layout">
+          <div class="panel products-panel">
+            <div class="panel-head"><div><h3>Pilih produk</h3><p>Ketuk produk untuk memasukkan ke keranjang</p></div><button class="outline-btn" id="scanOpen">▦ Pindai barcode</button></div>
+            <div class="product-tools"><input id="productSearch" placeholder="Cari nama atau barcode…" autocomplete="off"><select id="categoryFilter"><option value="">Semua kategori</option></select></div>
+            <div id="cashierProducts" class="product-grid"></div>
+          </div>
+          <div class="panel cart-panel">
+            <div class="panel-head"><div><h3>Keranjang</h3><p id="cartCount">0 item</p></div><button class="text-btn danger-text" id="clearCart">Kosongkan</button></div>
+            <div id="cartItems" class="cart-items"><div class="empty-state">Belum ada produk dipilih.</div></div>
+            <div class="cart-bottom">
+              <div class="total-row"><span>Total</span><strong id="cartTotal">Rp0</strong></div>
+              <label class="field-label" for="paymentMethod">Metode pembayaran</label>
+              <select id="paymentMethod"><option value="Tunai">Tunai</option><option value="Transfer/QR">Transfer / QR</option><option value="Non-tunai lain">Non-tunai lain</option></select>
+              <label class="field-label" for="cashReceived">Uang diterima (untuk tunai)</label>
+              <input id="cashReceived" type="number" min="0" inputmode="numeric" placeholder="0">
+              <div class="change-row"><span>Kembalian</span><strong id="changeAmount">Rp0</strong></div>
+              <button class="primary-btn full-btn" id="completeSale">Selesaikan transaksi</button>
+              <small class="subtle">Transaksi offline akan masuk antrean lokal. Jangan hapus data browser sebelum sinkronisasi.</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="page-produk">
+        <div class="page-toolbar"><div><h3>Produk & stok</h3><p>Kelola katalog, harga, barcode, dan stok awal.</p></div><button class="primary-btn" id="addProductBtn">＋ Tambah produk</button></div>
+        <div class="panel"><div class="table-wrap" id="productsTable"></div></div>
+      </section>
+
+      <section class="page" id="page-transaksi">
+        <div class="page-toolbar"><div><h3>Riwayat transaksi</h3><p>Transaksi yang tersimpan di perangkat kasir ini.</p></div><button class="outline-btn" id="exportTransactions">↓ Ekspor CSV</button></div>
+        <div class="panel"><div class="product-tools"><input id="transactionSearch" placeholder="Cari nomor transaksi…"></div><div class="table-wrap" id="transactionsTable"></div></div>
+      </section>
+
+      <section class="page" id="page-keuangan">
+        <div class="page-toolbar"><div><h3>Keuangan</h3><p>Ringkasan sederhana berdasarkan transaksi dan pengeluaran yang dicatat.</p></div><button class="primary-btn" id="addExpenseBtn">＋ Catat pengeluaran</button></div>
+        <div class="stat-grid three">
+          <article class="stat-card"><div class="stat-top"><span>Omzet</span><span class="stat-icon teal">↗</span></div><strong id="financeOmzet">Rp0</strong></article>
+          <article class="stat-card"><div class="stat-top"><span>Estimasi modal terjual</span><span class="stat-icon blue">□</span></div><strong id="financeCost">Rp0</strong></article>
+          <article class="stat-card"><div class="stat-top"><span>Laba kotor estimasi</span><span class="stat-icon orange">≈</span></div><strong id="financeProfit">Rp0</strong></article>
+        </div>
+        <div class="panel"><div class="panel-head"><div><h3>Pengeluaran tercatat</h3><p>Pengeluaran operasional yang diinput secara manual.</p></div></div><div class="table-wrap" id="expensesTable"></div></div>
+        <div class="notice"><span class="notice-icon">i</span><div><strong>Catatan akuntansi</strong><p>Ini merupakan ringkasan operasional, belum merupakan laporan keuangan akuntansi lengkap. Pembelian stok, utang, retur, dan penyesuaian kas perlu dicatat dengan alur khusus pada tahap berikutnya.</p></div></div>
+      </section>
+
+      <section class="page" id="page-laporan">
+        <div class="page-toolbar"><div><h3>Laporan kantin</h3><p>Ringkasan seluruh transaksi lokal yang sudah dicatat.</p></div><button class="outline-btn" id="exportReport">↓ Ekspor laporan CSV</button></div>
+        <div class="stat-grid three">
+          <article class="stat-card"><div class="stat-top"><span>Total transaksi</span><span class="stat-icon blue">▣</span></div><strong id="reportCount">0</strong></article>
+          <article class="stat-card"><div class="stat-top"><span>Nilai penjualan</span><span class="stat-icon teal">↗</span></div><strong id="reportSales">Rp0</strong></article>
+          <article class="stat-card"><div class="stat-top"><span>Antrean sinkronisasi</span><span class="stat-icon orange">↻</span></div><strong id="reportQueue">0</strong></article>
+        </div>
+        <div class="panel"><div class="panel-head"><div><h3>Ringkasan per produk</h3><p>Produk yang terjual pada perangkat ini.</p></div></div><div class="table-wrap" id="productReportTable"></div></div>
+      </section>
+
+      <section class="page" id="page-pengaturan">
+        <div class="page-toolbar"><div><h3>Pengaturan</h3><p>Identitas aplikasi, status data, dan koneksi cloud.</p></div></div>
+        <div class="settings-grid">
+          <div class="panel settings-card"><div class="settings-icon">▦</div><h3>Identitas kantin</h3><p>Nama yang tampil pada dashboard dan struk.</p><label class="field-label" for="canteenName">Nama kantin</label><input id="canteenName" value="Kantin Sekolah"><button class="primary-btn" id="saveSettings">Simpan nama</button></div>
+          <div class="panel settings-card"><div class="settings-icon">☁</div><h3>Database cloud</h3><p>Firebase belum dikonfigurasi. Aplikasi prototipe ini belum menyinkronkan data ke perangkat pengelola.</p><div class="config-status"><i></i><span id="firebaseStatus">Belum dikonfigurasi</span></div><small>Ikuti README untuk langkah konfigurasi sebelum digunakan secara online.</small></div>
+          <div class="panel settings-card"><div class="settings-icon">↻</div><h3>Data lokal</h3><p>Data contoh dan transaksi tersimpan di browser ini menggunakan IndexedDB.</p><button class="outline-btn" id="downloadBackup">Unduh cadangan JSON</button><button class="outline-btn danger-outline" id="resetDemo">Reset data lokal</button></div>
+          <div class="panel settings-card"><div class="settings-icon">⌁</div><h3>Keamanan</h3><p>Jangan gunakan akun bersama. Versi produksi perlu autentikasi, aturan akses database, pencatatan aktivitas, dan prosedur pencadangan.</p><span class="pill warning">Perlu konfigurasi produksi</span></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="productModal" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-head"><div><h2 id="productModalTitle">Tambah produk</h2><p>Isi data produk kantin.</p></div><button class="icon-btn" data-close="productModal">×</button></div>
+      <form id="productForm">
+        <input type="hidden" id="editProductId">
+        <div class="form-grid">
+          <div class="form-field span-2"><label for="productName">Nama produk *</label><input id="productName" required maxlength="80" placeholder="Contoh: Roti cokelat"></div>
+          <div class="form-field"><label for="productCategory">Kategori *</label><input id="productCategory" required maxlength="40" placeholder="Makanan"></div>
+          <div class="form-field"><label for="productBarcode">Barcode / SKU</label><input id="productBarcode" maxlength="80" placeholder="Opsional, harus unik"></div>
+          <div class="form-field"><label for="productCost">Harga modal (Rp) *</label><input id="productCost" required type="number" min="0" step="1" inputmode="numeric"></div>
+          <div class="form-field"><label for="productPrice">Harga jual (Rp) *</label><input id="productPrice" required type="number" min="0" step="1" inputmode="numeric"></div>
+          <div class="form-field"><label for="productStock">Stok awal / stok saat ini *</label><input id="productStock" required type="number" min="0" step="1" inputmode="numeric"></div>
+          <div class="form-field"><label for="productMinStock">Batas stok minimum</label><input id="productMinStock" type="number" min="0" step="1" value="5" inputmode="numeric"></div>
+        </div>
+        <div class="modal-actions"><button type="button" class="outline-btn" data-close="productModal">Batal</button><button type="submit" class="primary-btn">Simpan produk</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="scanModal" aria-hidden="true">
+    <div class="modal scan-modal">
+      <div class="modal-head"><div><h2>Pindai barcode</h2><p>Arahkan kamera ke barcode produk.</p></div><button class="icon-btn" data-close="scanModal">×</button></div>
+      <video id="scanVideo" playsinline></video>
+      <div class="scan-help" id="scanHelp">Jika kamera tidak didukung, masukkan barcode secara manual.</div>
+      <form id="manualBarcodeForm" class="manual-barcode"><input id="manualBarcode" placeholder="Ketik atau pindai dengan scanner USB" autocomplete="off"><button class="primary-btn">Cari</button></form>
+      <button class="outline-btn full-btn" id="startCamera">Aktifkan kamera</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="expenseModal" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-head"><div><h2>Catat pengeluaran</h2><p>Catat biaya operasional kantin.</p></div><button class="icon-btn" data-close="expenseModal">×</button></div>
+      <form id="expenseForm">
+        <div class="form-field"><label for="expenseName">Keterangan *</label><input id="expenseName" required maxlength="100" placeholder="Contoh: Gas memasak"></div>
+        <div class="form-field"><label for="expenseAmount">Nominal (Rp) *</label><input id="expenseAmount" required type="number" min="1" step="1" inputmode="numeric"></div>
+        <div class="form-field"><label for="expenseDate">Tanggal *</label><input id="expenseDate" required type="date"></div>
+        <div class="modal-actions"><button type="button" class="outline-btn" data-close="expenseModal">Batal</button><button class="primary-btn">Simpan pengeluaran</button></div>
+      </form>
+    </div>
+  </div>
+  <div id="toastRegion" class="toast-region" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
