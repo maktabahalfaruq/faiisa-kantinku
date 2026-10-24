@@ -6,6 +6,8 @@ Aplikasi web/PWA prototipe untuk manajemen kantin sekolah. Antarmuka berbahasa I
 
 - Dashboard ringkas.
 - Katalog produk, kategori, harga modal/jual, barcode/SKU, stok minimum.
+- Aksi produk: edit, ubah stok dengan alasan, nonaktifkan/aktifkan, dan hapus permanen hanya jika belum ada riwayat transaksi.
+- Catatan audit lokal untuk penyesuaian stok dan perubahan status produk (bukan audit log server produksi).
 - Kasir dengan keranjang, hitung total, metode pembayaran, dan kembalian tunai.
 - Pengurangan stok atomik bersama penyimpanan transaksi lokal di IndexedDB.
 - Pembatalan transaksi lokal dengan pengembalian stok.

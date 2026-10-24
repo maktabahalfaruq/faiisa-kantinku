@@ -88,6 +88,10 @@ async function seedDemoIfEmpty() {
 async function allProducts() { return (await getAll("products")).filter(p=>p.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"id")); }
 async function allSales() { return (await getAll("sales")).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)); }
 async function allExpenses() { return (await getAll("expenses")).sort((a,b)=>b.date.localeCompare(a.date)); }
+async function recordLocalAudit(action, details) {
+  // Prototype-only local audit trail. Production must use a server-protected audit log.
+  await put("meta", {key:uid("audit"), type:"localAudit", action, details, createdAt:nowIso()});
+}
 
 function navigate(page) {
   activePage=page;
@@ -205,39 +209,52 @@ async function getDeviceId() {
   return deviceIdPromise;
 }
 async function renderProductsTable() {
-  const products=await allProducts();
-  $("productsTable").innerHTML=tableHtml(["Produk","Kategori","Barcode / SKU","Modal","Harga jual","Stok","Aksi"],products.map(p=>[
-    `<strong>${escapeHtml(p.name)}</strong>`,escapeHtml(p.category),escapeHtml(p.barcode||"—"),rupiah(p.cost),rupiah(p.price),`<span class="${p.stock<=p.minStock?"stock-number":""}">${p.stock}</span>`,
-    `<button class="small-action" data-edit="${p.id}">Edit</button> <button class="small-action" data-stock="${p.id}">Ubah stok</button>`
-  ]));
+  const products=(await getAll("products")).sort((a,b)=>a.name.localeCompare(b.name,"id"));
+  $("productsTable").innerHTML=tableHtml(["Produk","Kategori","Barcode / SKU","Modal","Harga jual","Stok","Status","Aksi"],products.map(p=>{
+    const active=p.active!==false;
+    return [
+      `<strong>${escapeHtml(p.name)}</strong>`,escapeHtml(p.category),escapeHtml(p.barcode||"—"),rupiah(p.cost),rupiah(p.price),
+      `<span class="${p.stock<=p.minStock?"stock-number":""}">${p.stock}</span>`,
+      active?'<span class="pill">Aktif</span>':'<span class="pill warning">Nonaktif</span>',
+      `<button class="small-action" data-edit="${p.id}">Edit</button> <button class="small-action" data-stock="${p.id}">Ubah stok</button> <button class="small-action" data-toggle="${p.id}">${active?"Nonaktifkan":"Aktifkan"}</button> <button class="small-action" data-delete-product="${p.id}" style="color:#b42318">Hapus</button>`
+    ];
+  }));
   $("productsTable").querySelectorAll("[data-edit]").forEach(b=>b.addEventListener("click",()=>editProduct(b.dataset.edit)));
   $("productsTable").querySelectorAll("[data-stock]").forEach(b=>b.addEventListener("click",()=>adjustStock(b.dataset.stock)));
-}
-function openProductModal(product=null) {
-  $("productForm").reset();$("editProductId").value=product?.id||"";
-  $("productModalTitle").textContent=product?"Edit produk":"Tambah produk";
-  $("productName").value=product?.name||"";$("productCategory").value=product?.category||"";
-  $("productBarcode").value=product?.barcode||"";$("productCost").value=product?.cost??"";
-  $("productPrice").value=product?.price??"";$("productStock").value=product?.stock??0;
-  $("productMinStock").value=product?.minStock??5;showModal("productModal");
-}
-async function editProduct(id) { const p=await getOne("products",id);if(p)openProductModal(p); }
-async function saveProduct(event) {
-  event.preventDefault();
-  const id=$("editProductId").value||uid("prd"), old=await getOne("products",id);
-  const name=$("productName").value.trim(), category=$("productCategory").value.trim(), barcode=$("productBarcode").value.trim();
-  const cost=Number($("productCost").value),price=Number($("productPrice").value),stock=Number($("productStock").value),minStock=Number($("productMinStock").value||0);
-  if(!name||!category||![cost,price,stock,minStock].every(Number.isSafeInteger)||[cost,price,stock,minStock].some(n=>n<0)){toast("Periksa nama, kategori, dan nilai angka.",true);return;}
-  if(barcode){const duplicate=(await allProducts()).find(p=>p.barcode===barcode&&p.id!==id);if(duplicate){toast("Barcode sudah digunakan produk lain.",true);return;}}
-  const product={id,name,category,barcode,cost,price,stock,minStock,active:true,createdAt:old?.createdAt||nowIso(),updatedAt:nowIso()};
-  await put("products",product);closeModal("productModal");await renderAll();toast("Produk berhasil disimpan.");
+  $("productsTable").querySelectorAll("[data-toggle]").forEach(b=>b.addEventListener("click",()=>toggleProductActive(b.dataset.toggle)));
+  $("productsTable").querySelectorAll("[data-delete-product]").forEach(b=>b.addEventListener("click",()=>deleteProduct(b.dataset.deleteProduct)));
 }
 async function adjustStock(id) {
   const p=await getOne("products",id);if(!p)return;
   const input=prompt(`Ubah stok ${p.name}.\nStok saat ini: ${p.stock}\nMasukkan stok baru (angka bulat):`,String(p.stock));
   if(input===null)return;const stock=Number(input);
   if(!Number.isSafeInteger(stock)||stock<0){toast("Stok harus berupa angka bulat nol atau lebih.",true);return;}
-  p.stock=stock;p.updatedAt=nowIso();await put("products",p);await renderAll();toast("Stok diperbarui. Untuk produksi, gunakan penyesuaian stok dengan alasan dan audit log.");
+  const reason=prompt("Alasan perubahan stok (wajib):","Penyesuaian stok");
+  if(reason===null)return;
+  if(!reason.trim()){toast("Alasan perubahan stok wajib diisi.",true);return;}
+  const oldStock=p.stock;
+  p.stock=stock;p.updatedAt=nowIso();await put("products",p);
+  await recordLocalAudit("stock_adjustment",{productId:id,productName:p.name,oldStock,newStock:stock,reason:reason.trim()});
+  await renderAll();toast("Stok diperbarui dan alasan dicatat.");
+}
+async function toggleProductActive(id) {
+  const p=await getOne("products",id);if(!p)return;
+  const currentlyActive=p.active!==false;
+  if(!confirm(`${currentlyActive?"Nonaktifkan":"Aktifkan"} produk "${p.name}"? ${currentlyActive?"Produk tidak akan muncul di kasir, tetapi riwayat transaksi tetap aman.":"Produk akan muncul kembali di kasir."}`))return;
+  p.active=!currentlyActive;p.updatedAt=nowIso();await put("products",p);
+  await recordLocalAudit(currentlyActive?"product_deactivated":"product_activated",{productId:id,productName:p.name});
+  await renderAll();toast(currentlyActive?"Produk dinonaktifkan; riwayat tetap tersimpan.":"Produk diaktifkan kembali.");
+}
+async function deleteProduct(id) {
+  const p=await getOne("products",id);if(!p)return;
+  const sales=await getAll("sales");
+  const hasHistory=sales.some(s=>(s.items||[]).some(item=>item.productId===id));
+  if(hasHistory){toast("Produk sudah tercatat dalam riwayat transaksi. Gunakan Nonaktifkan agar laporan lama tetap aman.",true);return;}
+  if(!confirm(`Hapus permanen produk "${p.name}"? Produk ini belum ditemukan dalam riwayat transaksi. Tindakan ini tidak dapat dibatalkan.`))return;
+  await del("products",id);
+  await recordLocalAudit("product_deleted",{productId:id,productName:p.name});
+  cart=cart.filter(item=>item.productId!==id);
+  await renderAll();toast("Produk berhasil dihapus.");
 }
 async function renderTransactionsTable() {
   const q=($("transactionSearch")?.value||"").trim().toLowerCase(), sales=await allSales();
