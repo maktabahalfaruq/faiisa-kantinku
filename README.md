@@ -1,76 +1,46 @@
-# FAIISA KantinKu — Prototipe 0.1
+# FAIISA KantinKu — Prototipe 0.5
 
-Aplikasi web/PWA prototipe untuk manajemen kantin sekolah. Antarmuka berbahasa Indonesia, responsif, dan menyimpan data demo pada IndexedDB di browser.
+Prototipe aplikasi manajemen kantin sekolah untuk laptop/PC kasir dengan tampilan responsif. Versi ini melanjutkan fitur produk & stok, kasir, barcode, titip jual/konsinyasi, transaksi, keuangan, laporan, dan menambahkan rancangan login petugas serta pergantian shift.
 
-## Fitur yang sudah tersedia di prototipe
+## Fitur dalam prototipe
+- Dashboard, kasir, katalog produk, stok, transaksi, keuangan, laporan.
+- Input barcode manual/scanner USB-Bluetooth (scanner bertindak seperti keyboard) dan kamera jika browser mendukung `BarcodeDetector` serta HTTPS/localhost.
+- Data lokal menggunakan IndexedDB dan dapat digunakan tanpa koneksi internet untuk fitur yang datanya sudah tersimpan.
+- Titip jual: pencatatan penitip, penerimaan kiriman, penjualan, hak penitip, dan retur sisa harian.
+- Login lokal demo dengan pilihan nama dan PIN.
+- Penambahan/nonaktifkan akun petugas lokal.
+- Pencatatan serah terima shift dengan nominal kas dihitung dan catatan.
+- Kolom transaksi menyimpan nama petugas yang sedang login.
 
-- Dashboard ringkas.
-- Katalog produk, kategori, harga modal/jual, barcode/SKU, stok minimum.
-- Aksi produk: edit, ubah stok dengan alasan, nonaktifkan/aktifkan, dan hapus permanen hanya jika belum ada riwayat transaksi.
-- Catatan audit lokal untuk penyesuaian stok dan perubahan status produk (bukan audit log server produksi).
-- Kasir dengan keranjang, hitung total, metode pembayaran, dan kembalian tunai.
-- Pengurangan stok atomik bersama penyimpanan transaksi lokal di IndexedDB.
-- Pembatalan transaksi lokal dengan pengembalian stok.
-- Pencarian produk dan barcode.
-- Pemindaian barcode kamera pada browser yang mendukung `BarcodeDetector`, melalui HTTPS/localhost.
-- Input barcode manual dan scanner USB yang berperilaku seperti keyboard.
-- Catatan pengeluaran operasional.
-- Laporan sederhana dan ekspor CSV.
-- Unduh cadangan JSON.
-- Cache shell PWA untuk akses ulang offline setelah situs pertama kali dibuka online.
+## Akun contoh
+- Admin lokal: **Admin Kantin**, PIN **1234**.
+- Petugas: **Petugas Kantin**, PIN **1111**.
 
-## Batasan yang wajib diketahui
+Segera ubah PIN contoh melalui pengelolaan petugas sebelum demo internal. Login/PIN pada versi ini hanya simulasi lokal; PIN disimpan di browser dan **belum aman untuk penggunaan produksi**.
 
-**Ini belum siap dipakai untuk transaksi nyata atau multi-perangkat.** Firebase belum dikonfigurasi; data hanya ada di browser/perangkat yang digunakan. Status antrean sinkronisasi ditampilkan, tetapi proses upload ke cloud belum dibuat. Autentikasi dan aturan keamanan produksi juga belum tersedia.
+## Cara menjalankan di laptop Windows
+1. Ekstrak ZIP ke folder, misalnya `C:\FAIISA-KantinKu`.
+2. Buka folder tersebut.
+3. Untuk uji coba sederhana, buka `index.html` dengan Chrome atau Edge. Fitur IndexedDB berjalan pada browser modern; untuk service worker/PWA dan akses kamera, jalankan melalui HTTPS atau localhost.
+4. Login dengan salah satu akun contoh di atas.
+5. Coba transaksi contoh, pengelolaan produk, barcode, dan serah terima.
 
-Versi produksi harus menambahkan:
-1. Firebase Authentication dan peran pengguna.
-2. Firestore Security Rules yang menolak akses tanpa izin.
-3. Cloud Functions atau backend tepercaya untuk validasi transaksi dan sinkronisasi idempoten.
-4. Proses sinkronisasi dengan ID transaksi unik, retry, konflik, dan rekonsiliasi.
-5. Audit log yang tidak dapat diubah sembarangan untuk pembatalan/koreksi.
-6. Prosedur backup dan pemulihan.
-7. Pengujian browser/perangkat dan uji pemutusan jaringan.
+Untuk pengalaman terbaik, gunakan Chrome/Edge versi terbaru, layar laptop minimal 1366×768, RAM 8 GB, dan scanner barcode USB yang bertindak sebagai keyboard.
 
-## Menjalankan lokal
+## Batasan penting — belum untuk transaksi uang sungguhan
+- Data hanya tersimpan di browser/perangkat yang digunakan. Laptop dan HP admin **belum berbagi data**.
+- Status Online hanya menunjukkan koneksi internet; Firebase/cloud belum terpasang. Tombol sinkronisasi belum mengirim data ke server.
+- Login/PIN adalah simulasi dan bukan autentikasi aman; belum ada hashing PIN, pembatasan percobaan, hak akses server, atau audit trail terlindungi.
+- Jadwal shift pada tahap ini belum memiliki kalender/pengingat otomatis; yang tersedia adalah daftar akun dan catatan serah terima.
+- Offline queue belum mempunyai proses sinkronisasi cloud idempoten atau penyelesaian konflik stok multi-perangkat.
+- Backup JSON tersedia pada menu Pengaturan. Simpan cadangan secara berkala.
 
-Service Worker/PWA umumnya membutuhkan HTTPS atau `localhost`. Jangan membuka `index.html` langsung dengan `file://` jika ingin menguji PWA.
+## Tahap sebelum produksi
+1. Pasang Firebase Authentication atau penyedia autentikasi yang aman.
+2. Rancang Firestore dan Security Rules untuk admin, petugas, produk, stok, penjualan, penitip, dan log.
+3. Tambahkan sinkronisasi offline-first yang idempoten, validasi stok di server, serta penanganan konflik.
+4. Buat dashboard admin HP yang mengambil data dari cloud.
+5. Tambahkan kalender jadwal shift, persetujuan serah terima, dan audit log.
+6. Uji transaksi, barcode, printer struk, backup/restore, dan pemulihan saat listrik/internet terputus.
 
-Jika Python 3 tersedia:
-```bash
-python -m http.server 8080
-```
-Lalu buka `http://localhost:8080` di browser.
-
-Alternatif: deploy file ini ke hosting statis HTTPS.
-
-## Konfigurasi Firebase untuk tahap berikutnya
-
-1. Buat proyek di Firebase Console.
-2. Aktifkan Authentication (misalnya Email/Password).
-3. Buat Cloud Firestore.
-4. Siapkan koleksi per sekolah, misalnya `schools/{schoolId}/products`, `sales`, `stockMovements`, `expenses`, dan `auditLogs`.
-5. Tambahkan aturan akses berdasarkan `request.auth.uid` dan peran yang tersimpan/terverifikasi di server.
-6. Jangan pernah mengaktifkan aturan publik seperti `allow read, write: if true`.
-7. Jangan memasukkan service-account key atau kredensial admin server ke dalam JavaScript browser.
-8. Integrasikan SDK Firebase dan fungsi sinkronisasi setelah skema serta aturan akses diuji.
-
-## Strategi sinkronisasi yang direkomendasikan
-
-- Kasir utama adalah perangkat yang mengotorisasi penjualan saat offline.
-- Setiap transaksi diberi ID global unik, `deviceId`, waktu lokal, dan `schemaVersion`.
-- Simpan transaksi dan perubahan stok dalam satu transaksi IndexedDB.
-- Saat online, kirim transaksi ke endpoint tepercaya dengan operasi idempoten: pengiriman ulang ID yang sama tidak boleh membuat penjualan kedua.
-- Server memvalidasi harga, stok, status transaksi, dan otorisasi sebelum menulis data pusat.
-- Setelah server mengakui penyimpanan, tandai transaksi sebagai tersinkron.
-- Jangan menganggap `navigator.onLine` sebagai bukti bahwa Firebase bisa diakses.
-- Jika perangkat pengelola mengubah katalog saat kasir offline, perubahan tersebut tidak boleh diam-diam menimpa transaksi lokal; sediakan kebijakan konflik dan rekonsiliasi.
-- Hindari menjalankan dua kasir offline secara bersamaan dengan stok bersama tanpa desain reservasi/rekonsiliasi khusus.
-
-## Struktur file
-
-- `index.html` — struktur UI
-- `styles.css` — gaya responsif
-- `app.js` — aplikasi prototipe dan IndexedDB
-- `manifest.webmanifest` — metadata PWA
-- `sw.js` — cache shell aplikasi untuk offline
+**Jangan gunakan prototipe ini sebagai sistem kasir produksi atau sebagai sumber tunggal pembukuan sebelum tahap keamanan dan sinkronisasi selesai.**

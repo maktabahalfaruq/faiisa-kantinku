@@ -21,14 +21,16 @@
         <button class="nav-item active" data-page="dashboard"><span>▦</span> Dashboard</button>
         <button class="nav-item" data-page="kasir"><span>▣</span> Kasir</button>
         <button class="nav-item" data-page="produk"><span>□</span> Produk & Stok</button>
+        <button class="nav-item" data-page="titipjual"><span>⇄</span> Titip Jual</button>
         <button class="nav-item" data-page="transaksi"><span>↔</span> Transaksi</button>
         <button class="nav-item" data-page="keuangan"><span>◫</span> Keuangan</button>
         <button class="nav-item" data-page="laporan"><span>▤</span> Laporan</button>
+        <button class="nav-item" data-page="petugas"><span>♙</span> Petugas & Shift</button>
         <button class="nav-item" data-page="pengaturan"><span>⚙</span> Pengaturan</button>
       </nav>
       <div class="sidebar-bottom">
         <div class="connection"><i id="connectionDot"></i><span id="connectionText">Memeriksa koneksi…</span></div>
-        <small>Versi prototipe 0.1</small>
+        <small>Prototipe 0.5 · Laptop & Petugas</small>
       </div>
     </aside>
 
@@ -42,7 +44,7 @@
         <div class="top-actions">
           <span class="today" id="todayText"></span>
           <button class="icon-btn" id="syncBtn" title="Sinkronisasi">↻</button>
-          <div class="avatar">K</div>
+          <div class="session-user" id="sessionUser">Belum login</div><button class="outline-btn" id="handoverBtn">Serah terima</button><button class="icon-btn" id="logoutBtn" title="Keluar">↪</button>
         </div>
       </header>
 
@@ -99,6 +101,18 @@
         <div class="panel"><div class="table-wrap" id="productsTable"></div></div>
       </section>
 
+      <section class="page" id="page-titipjual">
+        <div class="page-toolbar"><div><h3>Konsinyasi / Titip Jual</h3><p>Barang dibayar berdasarkan jumlah terjual; sisa dikembalikan pada hari yang sama.</p></div><div><button class="outline-btn" id="addConsignorBtn">＋ Tambah penitip</button> <button class="primary-btn" id="receiveConsignmentBtn">＋ Terima kiriman</button></div></div>
+        <div class="stat-grid three">
+          <article class="stat-card"><div class="stat-top"><span>Penitip terdaftar</span></div><strong id="consignorCount">0</strong></article>
+          <article class="stat-card"><div class="stat-top"><span>Penjualan titipan hari ini</span></div><strong id="consignmentSalesToday">Rp0</strong></article>
+          <article class="stat-card"><div class="stat-top"><span>Hak penitip hari ini</span></div><strong id="consignmentPayToday">Rp0</strong></article>
+        </div>
+        <div class="panel"><div class="panel-head"><div><h3>Daftar penitip & rekap hari ini</h3><p>Nilai hak penitip dihitung dari barang titipan yang benar-benar terjual.</p></div><button class="outline-btn" id="closeConsignmentDayBtn">Tutup hari & catat retur sisa</button></div><div class="table-wrap" id="consignorTable"></div></div>
+        <div class="panel"><div class="panel-head"><div><h3>Riwayat penerimaan dan retur</h3><p>Catatan kiriman masuk dan sisa yang dikembalikan.</p></div></div><div class="table-wrap" id="consignmentLogTable"></div></div>
+        <div class="notice"><span class="notice-icon">i</span><div><strong>Alur harian</strong><p>Daftarkan penitip dan produknya satu kali. Setiap barang datang, masukkan jumlah kiriman. Penjualan mengurangi stok otomatis. Saat tutup hari, sisa stok titipan dicatat sebagai dikembalikan dan stoknya menjadi nol. Pastikan barang fisik benar-benar diserahkan kembali.</p></div></div>
+      </section>
+
       <section class="page" id="page-transaksi">
         <div class="page-toolbar"><div><h3>Riwayat transaksi</h3><p>Transaksi yang tersimpan di perangkat kasir ini.</p></div><button class="outline-btn" id="exportTransactions">↓ Ekspor CSV</button></div>
         <div class="panel"><div class="product-tools"><input id="transactionSearch" placeholder="Cari nomor transaksi…"></div><div class="table-wrap" id="transactionsTable"></div></div>
@@ -125,6 +139,22 @@
         <div class="panel"><div class="panel-head"><div><h3>Ringkasan per produk</h3><p>Produk yang terjual pada perangkat ini.</p></div></div><div class="table-wrap" id="productReportTable"></div></div>
       </section>
 
+      <section class="page" id="page-petugas">
+        <div class="page-toolbar"><div><h3>Petugas & pergantian shift</h3><p>Kelola akun demo, jadwal, dan catatan serah terima pada perangkat ini.</p></div></div>
+        <div class="stat-grid three">
+          <article class="stat-card"><div class="stat-top"><span>Petugas terdaftar</span></div><strong id="staffCount">0</strong></article>
+          <article class="stat-card"><div class="stat-top"><span>Petugas aktif</span></div><strong id="staffActive">—</strong></article>
+          <article class="stat-card"><div class="stat-top"><span>Serah terima hari ini</span></div><strong id="handoverCount">0</strong></article>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><h3>Tambah petugas</h3><p>PIN demo 4–6 digit. Untuk produksi harus diganti autentikasi aman.</p></div></div>
+          <form id="staffForm" class="staff-form"><input id="staffName" required maxlength="60" placeholder="Nama petugas"><input id="staffPin" required inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" placeholder="PIN 4–6 digit"><select id="staffRole"><option value="cashier">Petugas kasir</option><option value="admin">Admin lokal</option></select><button class="primary-btn">Tambah petugas</button></form>
+          <div class="table-wrap" id="staffTable"></div>
+        </div>
+        <div class="panel"><div class="panel-head"><div><h3>Riwayat serah terima</h3><p>Catatan nominal kas dan petugas yang berganti.</p></div></div><div class="table-wrap" id="handoverTable"></div></div>
+        <div class="notice"><span class="notice-icon">i</span><div><strong>Jadwal shift</strong><p>Catat jadwal petugas di perangkat ini. Jadwal belum mengirim pengingat dan belum tersinkron ke HP admin sampai backend cloud dipasang.</p></div></div>
+      </section>
+
       <section class="page" id="page-pengaturan">
         <div class="page-toolbar"><div><h3>Pengaturan</h3><p>Identitas aplikasi, status data, dan koneksi cloud.</p></div></div>
         <div class="settings-grid">
@@ -137,6 +167,18 @@
     </main>
   </div>
 
+  <div class="login-screen" id="loginScreen">
+    <div class="login-card">
+      <div class="login-brand"><div class="brand-mark">F</div><div><strong>FAIISA</strong><small>KantinKu · Perangkat Kasir</small></div></div>
+      <p class="eyebrow">SELAMAT DATANG</p><h1>Masuk ke KantinKu</h1><p class="login-copy">Pilih nama petugas dan masukkan PIN pribadi untuk memulai shift.</p>
+      <form id="loginForm"><label class="field-label" for="loginStaff">Nama petugas</label><select id="loginStaff" required></select><label class="field-label" for="loginPin">PIN pribadi</label><input id="loginPin" type="password" inputmode="numeric" maxlength="6" placeholder="Masukkan PIN" required><button class="primary-btn full-btn">Masuk ke aplikasi</button></form>
+      <div class="demo-login-note"><strong>Akun contoh prototipe</strong><br>Admin lokal: PIN 1234 · Petugas: PIN 1111<br>Ganti PIN dan jangan gunakan akun contoh untuk operasional nyata.</div>
+      <small class="login-foot">Versi demo lokal · Belum terhubung ke cloud</small>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="handoverModal" aria-hidden="true"><div class="modal"><div class="modal-head"><div><h2>Serah terima shift</h2><p>Catat kas fisik sebelum petugas berikutnya masuk.</p></div><button class="icon-btn" data-close="handoverModal">×</button></div><form id="handoverForm"><div class="form-field"><label for="handoverCash">Uang kas dihitung (Rp)</label><input id="handoverCash" type="number" min="0" step="1" required placeholder="0"></div><div class="form-field"><label for="handoverNote">Catatan (opsional)</label><input id="handoverNote" maxlength="200" placeholder="Contoh: uang kecil disimpan di laci"></div><div class="modal-actions"><button type="button" class="outline-btn" data-close="handoverModal">Batal</button><button class="primary-btn">Simpan serah terima & keluar</button></div></form></div></div>
+
   <div class="modal-backdrop" id="productModal" aria-hidden="true">
     <div class="modal">
       <div class="modal-head"><div><h2 id="productModalTitle">Tambah produk</h2><p>Isi data produk kantin.</p></div><button class="icon-btn" data-close="productModal">×</button></div>
@@ -145,11 +187,13 @@
         <div class="form-grid">
           <div class="form-field span-2"><label for="productName">Nama produk *</label><input id="productName" required maxlength="80" placeholder="Contoh: Roti cokelat"></div>
           <div class="form-field"><label for="productCategory">Kategori *</label><input id="productCategory" required maxlength="40" placeholder="Makanan"></div>
-          <div class="form-field"><label for="productBarcode">Barcode / SKU</label><input id="productBarcode" maxlength="80" placeholder="Opsional, harus unik"></div>
+          <div class="form-field"><label for="productBarcode">Barcode / SKU</label><div class="scan-inline"><input id="productBarcode" maxlength="80" placeholder="Opsional, harus unik"><button type="button" class="outline-btn" id="scanForProduct">Scan</button></div></div>
           <div class="form-field"><label for="productCost">Harga modal (Rp) *</label><input id="productCost" required type="number" min="0" step="1" inputmode="numeric"></div>
           <div class="form-field"><label for="productPrice">Harga jual (Rp) *</label><input id="productPrice" required type="number" min="0" step="1" inputmode="numeric"></div>
           <div class="form-field"><label for="productStock">Stok awal / stok saat ini *</label><input id="productStock" required type="number" min="0" step="1" inputmode="numeric"></div>
           <div class="form-field"><label for="productMinStock">Batas stok minimum</label><input id="productMinStock" type="number" min="0" step="1" value="5" inputmode="numeric"></div>
+          <div class="form-field"><label for="productConsignor">Penitip (kosongkan untuk stok milik kantin)</label><select id="productConsignor"><option value="">Milik kantin</option></select></div>
+          <div class="form-field"><label for="productOwnerPrice">Hak penitip per unit (Rp)</label><input id="productOwnerPrice" type="number" min="0" step="1" value="0" inputmode="numeric"><small class="subtle">Harga jual dikurangi hak penitip menjadi komisi kotor kantin.</small></div>
         </div>
         <div class="modal-actions"><button type="button" class="outline-btn" data-close="productModal">Batal</button><button type="submit" class="primary-btn">Simpan produk</button></div>
       </form>
@@ -158,9 +202,9 @@
 
   <div class="modal-backdrop" id="scanModal" aria-hidden="true">
     <div class="modal scan-modal">
-      <div class="modal-head"><div><h2>Pindai barcode</h2><p>Arahkan kamera ke barcode produk.</p></div><button class="icon-btn" data-close="scanModal">×</button></div>
+      <div class="modal-head"><div><h2>Pindai barcode</h2><p id="scanModalSubtitle">Arahkan kamera ke barcode produk.</p></div><button class="icon-btn" data-close="scanModal">×</button></div>
       <video id="scanVideo" playsinline></video>
-      <div class="scan-help" id="scanHelp">Jika kamera tidak didukung, masukkan barcode secara manual.</div>
+      <div class="scan-help" id="scanHelp">Barcode yang sudah terdaftar akan dikenali. Jika baru, sistem mencoba mencari nama produk secara online.</div>
       <form id="manualBarcodeForm" class="manual-barcode"><input id="manualBarcode" placeholder="Ketik atau pindai dengan scanner USB" autocomplete="off"><button class="primary-btn">Cari</button></form>
       <button class="outline-btn full-btn" id="startCamera">Aktifkan kamera</button>
     </div>

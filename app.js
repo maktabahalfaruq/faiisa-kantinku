@@ -3,14 +3,16 @@
  * Production deployment must add Firebase Auth, Firestore rules, server-side validation and sync worker.
  */
 const DB_NAME = "faiisa-kantinku";
-const DB_VERSION = 1;
-const STORES = ["products", "sales", "expenses", "meta"];
+const DB_VERSION = 3;
+const STORES = ["products", "sales", "expenses", "meta", "consignors", "consignmentLog", "staff", "handovers", "auditLogs"];
 let db;
 let cart = [];
 let scanStream = null;
 let scanLoop = false;
 let barcodeDetector = null;
+let scanPurpose = "cashier";
 let activePage = "dashboard";
+let activeStaff = null;
 
 const $ = id => document.getElementById(id);
 const rupiah = value => new Intl.NumberFormat("id-ID", {style:"currency", currency:"IDR", maximumFractionDigits:0}).format(Number(value)||0);
@@ -35,6 +37,11 @@ function openDb() {
       }
       if (!database.objectStoreNames.contains("expenses")) database.createObjectStore("expenses", {keyPath:"id"});
       if (!database.objectStoreNames.contains("meta")) database.createObjectStore("meta", {keyPath:"key"});
+      if (!database.objectStoreNames.contains("consignors")) database.createObjectStore("consignors", {keyPath:"id"});
+      if (!database.objectStoreNames.contains("consignmentLog")) database.createObjectStore("consignmentLog", {keyPath:"id"});
+      if (!database.objectStoreNames.contains("staff")) database.createObjectStore("staff", {keyPath:"id"});
+      if (!database.objectStoreNames.contains("handovers")) database.createObjectStore("handovers", {keyPath:"id"});
+      if (!database.objectStoreNames.contains("auditLogs")) database.createObjectStore("auditLogs", {keyPath:"id"});
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -85,19 +92,51 @@ async function seedDemoIfEmpty() {
   }
   await put("meta",{key:"canteenName",value:"Kantin Sekolah"});
 }
+async function seedStaffIfEmpty() {
+  if((await getAll("staff")).length) return;
+  await put("staff",{id:"staff_admin",name:"Admin Kantin",pin:"1234",role:"admin",active:true,createdAt:nowIso()});
+  await put("staff",{id:"staff_cashier",name:"Petugas Kantin",pin:"1111",role:"cashier",active:true,createdAt:nowIso()});
+}
+async function refreshLoginOptions() {
+  const staff=(await getAll("staff")).filter(x=>x.active!==false);
+  $("loginStaff").innerHTML=staff.map(x=>`<option value="${escapeHtml(x.id)}">${escapeHtml(x.name)} · ${x.role==="admin"?"Admin":"Petugas"}</option>`).join("");
+}
+async function renderStaff() {
+  const staff=(await getAll("staff")).sort((a,b)=>a.name.localeCompare(b.name,"id"));
+  const handovers=(await getAll("handovers")).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
+  $("staffCount").textContent=staff.filter(x=>x.active!==false).length;
+  $("staffActive").textContent=activeStaff?.name||"—";
+  $("handoverCount").textContent=handovers.filter(x=>isToday(x.createdAt)).length;
+  $("staffTable").innerHTML=tableHtml(["Nama","Peran","Status","Aksi"],staff.map(x=>[escapeHtml(x.name),x.role==="admin"?"Admin lokal":"Petugas kasir",x.active===false?"Nonaktif":"Aktif",`<button class="small-action" data-staff-toggle="${x.id}">${x.active===false?"Aktifkan":"Nonaktifkan"}</button>`]));
+  $("handoverTable").innerHTML=tableHtml(["Waktu","Petugas keluar","Kas dihitung","Catatan"],handovers.slice(0,30).map(x=>[fmtDate(x.createdAt),escapeHtml(x.staffName),rupiah(x.cashCounted),escapeHtml(x.note||"—")]));
+  $("staffTable").querySelectorAll("[data-staff-toggle]").forEach(b=>b.addEventListener("click",async()=>{const x=await getOne("staff",b.dataset.staffToggle);if(!x)return;if(x.id===activeStaff?.id){toast("Petugas yang sedang login tidak dapat dinonaktifkan.",true);return;}x.active=x.active===false;await put("staff",x);await renderStaff();await refreshLoginOptions();}));
+}
+async function loginStaff(event) {
+  event.preventDefault();const id=$("loginStaff").value,pin=$("loginPin").value;
+  const staff=await getOne("staff",id);
+  if(!staff||staff.active===false||staff.pin!==pin){toast("Nama petugas atau PIN tidak sesuai.",true);return;}
+  activeStaff={id:staff.id,name:staff.name,role:staff.role,loginAt:nowIso()};
+  $("loginScreen").classList.add("hidden");$("sessionUser").textContent=`${staff.name} · ${staff.role==="admin"?"Admin":"Petugas"}`;$("loginPin").value="";
+  await renderStaff();toast(`Selamat bertugas, ${staff.name}.`);
+}
+function logoutStaff(){activeStaff=null;cart=[];$("loginScreen").classList.remove("hidden");$("sessionUser").textContent="Belum login";refreshLoginOptions();}
+async function saveHandover(event){
+  event.preventDefault();if(!activeStaff){toast("Belum ada petugas login.",true);return;}
+  await put("handovers",{id:uid("handover"),createdAt:nowIso(),staffId:activeStaff.id,staffName:activeStaff.name,cashCounted:Number($("handoverCash").value)||0,note:$("handoverNote").value.trim()});
+  closeModal("handoverModal");$("handoverForm").reset();toast("Serah terima tersimpan di perangkat ini.");logoutStaff();await renderStaff();
+}
+async function recordLocalAudit(action,details={}) { return put("auditLogs",{id:uid("audit"),action,details,staffId:activeStaff?.id||null,staffName:activeStaff?.name||"Belum login",createdAt:nowIso()}); }
 async function allProducts() { return (await getAll("products")).filter(p=>p.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"id")); }
 async function allSales() { return (await getAll("sales")).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)); }
 async function allExpenses() { return (await getAll("expenses")).sort((a,b)=>b.date.localeCompare(a.date)); }
-async function recordLocalAudit(action, details) {
-  // Prototype-only local audit trail. Production must use a server-protected audit log.
-  await put("meta", {key:uid("audit"), type:"localAudit", action, details, createdAt:nowIso()});
-}
 
 function navigate(page) {
+  if(!activeStaff){toast("Silakan login terlebih dahulu.",true);return;}
+  if(activeStaff.role!=="admin" && ["petugas","pengaturan","keuangan","laporan"].includes(page)){toast("Menu ini hanya tersedia untuk admin lokal.",true);return;}
   activePage=page;
   document.querySelectorAll(".page").forEach(el=>el.classList.toggle("active",el.id===`page-${page}`));
   document.querySelectorAll(".nav-item").forEach(el=>el.classList.toggle("active",el.dataset.page===page));
-  const labels={dashboard:["RINGKASAN OPERASIONAL","Dashboard"],kasir:["PENJUALAN","Kasir"],produk:["KATALOG & PERSEDIAAN","Produk & Stok"],transaksi:["RIWAYAT PENJUALAN","Transaksi"],keuangan:["PENCATATAN UANG","Keuangan"],laporan:["ANALISIS OPERASIONAL","Laporan"],pengaturan:["PREFERENSI APLIKASI","Pengaturan"]};
+  const labels={dashboard:["RINGKASAN OPERASIONAL","Dashboard"],kasir:["PENJUALAN","Kasir"],produk:["KATALOG & PERSEDIAAN","Produk & Stok"],titipjual:["KONSINYASI","Titip Jual"],transaksi:["RIWAYAT PENJUALAN","Transaksi"],keuangan:["PENCATATAN UANG","Keuangan"],laporan:["ANALISIS OPERASIONAL","Laporan"],petugas:["AKUN & PERGANTIAN SHIFT","Petugas & Shift"],pengaturan:["PREFERENSI APLIKASI","Pengaturan"]};
   $("pageEyebrow").textContent=labels[page][0];$("pageTitle").textContent=labels[page][1];
   $("sidebar").classList.remove("open");
   renderAll();
@@ -108,10 +147,12 @@ async function renderAll() {
   await renderCashierProducts();
   await renderCart();
   await renderProductsTable();
+  await renderConsignment();
   await renderTransactionsTable();
   await renderFinance();
   await renderReports();
   await renderCategories();
+  if($("page-petugas")) await renderStaff();
 }
 async function updateConnection() {
   const online=navigator.onLine;
@@ -152,7 +193,7 @@ async function addToCart(id) {
   const p=await getOne("products",id);if(!p||p.stock<=0){toast("Stok produk habis.",true);return;}
   const line=cart.find(x=>x.productId===id), qty=line?line.qty:0;
   if(qty+1>p.stock){toast("Jumlah melebihi stok yang tersedia.",true);return;}
-  if(line)line.qty++;else cart.push({productId:id,name:p.name,price:p.price,cost:p.cost,qty:1});
+  if(line)line.qty++;else cart.push({productId:id,name:p.name,price:p.price,cost:p.cost,qty:1,consignorId:p.consignorId||null,consignorName:p.consignorName||null,ownerPrice:Number(p.ownerPrice)||0});
   await renderCart();
 }
 async function renderCart() {
@@ -173,12 +214,13 @@ async function changeQty(id,delta) {
   await renderCart();
 }
 async function completeSale() {
+  if(!activeStaff){toast("Silakan login terlebih dahulu.",true);return;}
   if(!cart.length){toast("Keranjang masih kosong.",true);return;}
   const total=cart.reduce((n,x)=>n+x.qty*x.price,0), method=$("paymentMethod").value, received=Number($("cashReceived").value)||0;
   if(method==="Tunai"&&received<total){toast("Uang diterima belum mencukupi.",true);$("cashReceived").focus();return;}
   // A single IndexedDB transaction atomically updates all product stocks and inserts the sale.
   const saleId=uid("sale"), createdAt=nowIso();
-  const sale={id:saleId,number:"KT-"+new Date().toISOString().replace(/[-:TZ.]/g,"").slice(0,14)+"-"+Math.random().toString(36).slice(2,5).toUpperCase(),createdAt,items:cart.map(x=>({...x})),total,costTotal:cart.reduce((n,x)=>n+x.qty*x.cost,0),paymentMethod:method,cashReceived:method==="Tunai"?received:null,change:method==="Tunai"?received-total:0,status:"completed",syncStatus:"pending",deviceId:await getDeviceId(),schemaVersion:1};
+  const sale={id:saleId,staffId:activeStaff?.id||null,staffName:activeStaff?.name||"Belum ditentukan",number:"KT-"+new Date().toISOString().replace(/[-:TZ.]/g,"").slice(0,14)+"-"+Math.random().toString(36).slice(2,5).toUpperCase(),createdAt,items:cart.map(x=>({...x})),total,costTotal:cart.reduce((n,x)=>n+x.qty*x.cost,0),paymentMethod:method,cashReceived:method==="Tunai"?received:null,change:method==="Tunai"?received-total:0,status:"completed",syncStatus:"pending",deviceId:await getDeviceId(),schemaVersion:1};
   try {
     await new Promise((resolve,reject)=>{
       const t=db.transaction(["products","sales"],"readwrite");
@@ -224,18 +266,33 @@ async function renderProductsTable() {
   $("productsTable").querySelectorAll("[data-toggle]").forEach(b=>b.addEventListener("click",()=>toggleProductActive(b.dataset.toggle)));
   $("productsTable").querySelectorAll("[data-delete-product]").forEach(b=>b.addEventListener("click",()=>deleteProduct(b.dataset.deleteProduct)));
 }
+async function openProductModal(product=null) {
+  await renderConsignorOptions();
+  $("productForm").reset();$("editProductId").value=product?.id||"";
+  $("productModalTitle").textContent=product?"Edit produk":"Tambah produk";
+  $("productName").value=product?.name||"";$("productCategory").value=product?.category||"";
+  $("productBarcode").value=product?.barcode||"";$("productCost").value=product?.cost??"";
+  $("productPrice").value=product?.price??"";$("productStock").value=product?.stock??0;
+  $("productMinStock").value=product?.minStock??5;$("productConsignor").value=product?.consignorId||"";$("productOwnerPrice").value=product?.ownerPrice??0;showModal("productModal");
+}
+async function editProduct(id) { const p=await getOne("products",id);if(p)await openProductModal(p); }
+async function saveProduct(event) {
+  event.preventDefault();
+  const id=$("editProductId").value||uid("prd"), old=await getOne("products",id);
+  const name=$("productName").value.trim(), category=$("productCategory").value.trim(), barcode=$("productBarcode").value.trim();
+  const cost=Number($("productCost").value),price=Number($("productPrice").value),stock=Number($("productStock").value),minStock=Number($("productMinStock").value||0);
+  if(!name||!category||![cost,price,stock,minStock].every(Number.isSafeInteger)||[cost,price,stock,minStock].some(n=>n<0)){toast("Periksa nama, kategori, dan nilai angka.",true);return;}
+  if(barcode){const duplicate=(await getAll("products")).find(p=>p.barcode===barcode&&p.id!==id);if(duplicate){toast("Barcode sudah digunakan produk lain.",true);return;}}
+  const consignorId=$("productConsignor").value||null;const consignor=consignorId?await getOne("consignors",consignorId):null;const ownerPrice=consignorId?Number($("productOwnerPrice").value||0):0;if(consignorId&&(!Number.isSafeInteger(ownerPrice)||ownerPrice<0||ownerPrice>price)){toast("Hak penitip harus angka nol atau lebih dan tidak melebihi harga jual.",true);return;}
+  const product={id,name,category,barcode,cost,price,stock,minStock,consignorId,consignorName:consignor?.name||null,ownerPrice,active:old?.active!==false,createdAt:old?.createdAt||nowIso(),updatedAt:nowIso()};
+  await put("products",product);closeModal("productModal");await renderAll();toast("Produk berhasil disimpan.");
+}
 async function adjustStock(id) {
   const p=await getOne("products",id);if(!p)return;
   const input=prompt(`Ubah stok ${p.name}.\nStok saat ini: ${p.stock}\nMasukkan stok baru (angka bulat):`,String(p.stock));
   if(input===null)return;const stock=Number(input);
   if(!Number.isSafeInteger(stock)||stock<0){toast("Stok harus berupa angka bulat nol atau lebih.",true);return;}
-  const reason=prompt("Alasan perubahan stok (wajib):","Penyesuaian stok");
-  if(reason===null)return;
-  if(!reason.trim()){toast("Alasan perubahan stok wajib diisi.",true);return;}
-  const oldStock=p.stock;
-  p.stock=stock;p.updatedAt=nowIso();await put("products",p);
-  await recordLocalAudit("stock_adjustment",{productId:id,productName:p.name,oldStock,newStock:stock,reason:reason.trim()});
-  await renderAll();toast("Stok diperbarui dan alasan dicatat.");
+  const reason=prompt("Alasan perubahan stok (wajib):","Penyesuaian stok");if(reason===null)return;if(!reason.trim()){toast("Alasan perubahan stok wajib diisi.",true);return;}const oldStock=p.stock;p.stock=stock;p.updatedAt=nowIso();await put("products",p);await recordLocalAudit("stock_adjustment",{productId:id,productName:p.name,oldStock,newStock:stock,reason:reason.trim()});await renderAll();toast("Stok diperbarui dan alasan dicatat.");
 }
 async function toggleProductActive(id) {
   const p=await getOne("products",id);if(!p)return;
@@ -247,20 +304,33 @@ async function toggleProductActive(id) {
 }
 async function deleteProduct(id) {
   const p=await getOne("products",id);if(!p)return;
-  const sales=await getAll("sales");
-  const hasHistory=sales.some(s=>(s.items||[]).some(item=>item.productId===id));
+  const sales=await allSales(), hasHistory=sales.some(s=>(s.items||[]).some(item=>item.productId===id));
   if(hasHistory){toast("Produk sudah tercatat dalam riwayat transaksi. Gunakan Nonaktifkan agar laporan lama tetap aman.",true);return;}
   if(!confirm(`Hapus permanen produk "${p.name}"? Produk ini belum ditemukan dalam riwayat transaksi. Tindakan ini tidak dapat dibatalkan.`))return;
-  await del("products",id);
-  await recordLocalAudit("product_deleted",{productId:id,productName:p.name});
-  cart=cart.filter(item=>item.productId!==id);
+  await del("products",id);await recordLocalAudit("product_deleted",{productId:id,productName:p.name});cart=cart.filter(item=>item.productId!==id);
   await renderAll();toast("Produk berhasil dihapus.");
 }
+async function renderConsignorOptions(){
+ const list=(await getAll("consignors")).sort((a,b)=>a.name.localeCompare(b.name,"id"));const sel=$("productConsignor");if(!sel)return;const chosen=sel.value;sel.innerHTML='<option value="">Milik kantin</option>'+list.map(x=>`<option value="${x.id}">${escapeHtml(x.name)}</option>`).join("");if(list.some(x=>x.id===chosen))sel.value=chosen;
+}
+async function renderConsignment(){
+ await renderConsignorOptions();const owners=(await getAll("consignors")).sort((a,b)=>a.name.localeCompare(b.name,"id"));const products=await getAll("products"),sales=(await allSales()).filter(s=>s.status==="completed"&&isToday(s.createdAt));
+ const rows=owners.map(o=>{let sold=0,gross=0,pay=0;for(const s of sales)for(const i of (s.items||[])){if(i.consignorId===o.id){sold+=i.qty;gross+=i.qty*i.price;pay+=i.qty*(Number(i.ownerPrice)||0);}}const names=products.filter(p=>p.consignorId===o.id).map(p=>p.name).join(", ")||"—";return [`<strong>${escapeHtml(o.name)}</strong><br><small>${escapeHtml(o.contact||"")}</small>`,escapeHtml(names),sold,rupiah(gross),rupiah(pay)];});
+ $("consignorCount").textContent=owners.length;$("consignmentSalesToday").textContent=rupiah(rows.reduce((n,r)=>n+Number(String(r[3]).replace(/[^0-9]/g,"")),0));
+ const payTotal=sales.reduce((n,s)=>n+(s.items||[]).filter(i=>i.consignorId).reduce((a,i)=>a+i.qty*(Number(i.ownerPrice)||0),0),0);$("consignmentPayToday").textContent=rupiah(payTotal);
+ $("consignorTable").innerHTML=tableHtml(["Penitip","Produk","Terjual hari ini","Nilai penjualan","Hak penitip"],rows);
+ const logs=(await getAll("consignmentLog")).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,30);
+ $("consignmentLogTable").innerHTML=tableHtml(["Waktu","Jenis","Penitip","Produk","Jumlah","Catatan"],logs.map(l=>[fmtDate(l.createdAt),l.type==="delivery"?'<span class="pill">Kiriman masuk</span>':l.type==="return"?'<span class="pill warning">Sisa dikembalikan</span>':'Rekap',escapeHtml(l.consignorName||"—"),escapeHtml(l.productName||"—"),l.qty,escapeHtml(l.note||"")]));
+}
+async function addConsignor(){const name=prompt("Nama penitip / pemasok:");if(name===null)return;if(!name.trim()){toast("Nama penitip wajib diisi.",true);return;}const contact=prompt("Nomor kontak (opsional):","")||"";const exists=(await getAll("consignors")).some(x=>x.name.toLowerCase()===name.trim().toLowerCase());if(exists){toast("Nama penitip sudah terdaftar.",true);return;}await put("consignors",{id:uid("owner"),name:name.trim(),contact:contact.trim(),createdAt:nowIso()});await renderAll();toast("Penitip berhasil ditambahkan.");}
+async function receiveConsignment(){const products=(await getAll("products")).filter(p=>p.consignorId&&p.active!==false);if(!products.length){toast("Daftarkan penitip dahulu, lalu tambah produk dan pilih nama penitip pada formulir produk.",true);navigate("produk");openProductModal();return;}const options=products.map((p,i)=>`${i+1}. ${p.name} — ${p.consignorName||"Penitip"}`).join("\n");const pick=prompt("Pilih nomor produk untuk kiriman:\n"+options,"1");if(pick===null)return;const p=products[Number(pick)-1];if(!p){toast("Pilihan produk tidak valid.",true);return;}const qty=Number(prompt(`Jumlah ${p.name} yang diterima hari ini:`,"1"));if(!Number.isSafeInteger(qty)||qty<=0){toast("Jumlah harus bilangan bulat lebih dari nol.",true);return;}const note=prompt("Catatan kiriman (opsional):","")||"";p.stock+=qty;p.updatedAt=nowIso();await put("products",p);await put("consignmentLog",{id:uid("clog"),type:"delivery",productId:p.id,productName:p.name,consignorId:p.consignorId,consignorName:p.consignorName,qty,note,createdAt:nowIso()});await renderAll();toast(`Kiriman ${qty} ${p.name} dicatat.`);}
+async function closeConsignmentDay(){const products=(await getAll("products")).filter(p=>p.consignorId&&p.stock>0);if(!products.length){toast("Tidak ada sisa stok titipan yang perlu diretur.");return;}const detail=products.map(p=>`${p.name}: ${p.stock}`).join("\n");if(!confirm("Pastikan sisa fisik dikembalikan kepada penitip hari ini. Sistem akan mencatat retur dan mengosongkan stok titipan berikut:\n\n"+detail+"\n\nLanjutkan?") )return;for(const p of products){const qty=p.stock;p.stock=0;p.updatedAt=nowIso();await put("products",p);await put("consignmentLog",{id:uid("clog"),type:"return",productId:p.id,productName:p.name,consignorId:p.consignorId,consignorName:p.consignorName,qty,note:"Retur sisa pada penutupan hari",createdAt:nowIso()});}await renderAll();toast("Retur sisa dicatat. Stok titipan direset ke nol.");}
+
 async function renderTransactionsTable() {
   const q=($("transactionSearch")?.value||"").trim().toLowerCase(), sales=await allSales();
   const filtered=sales.filter(s=>!q||s.number.toLowerCase().includes(q));
-  $("transactionsTable").innerHTML=tableHtml(["No. transaksi","Tanggal","Item","Pembayaran","Total","Status","Aksi"],filtered.map(s=>[
-    `<strong>${escapeHtml(s.number)}</strong>`,fmtDate(s.createdAt),s.items.reduce((n,x)=>n+x.qty,0),escapeHtml(s.paymentMethod),rupiah(s.total),`<span class="${s.syncStatus==="synced"?"status-local":"status-pending"}">${s.syncStatus==="synced"?"Tersinkron":"Belum tersinkron"}</span>`,
+  $("transactionsTable").innerHTML=tableHtml(["No. transaksi","Tanggal","Petugas","Item","Pembayaran","Total","Status","Aksi"],filtered.map(s=>[
+    `<strong>${escapeHtml(s.number)}</strong>`,fmtDate(s.createdAt),escapeHtml(s.staffName||"—"),s.items.reduce((n,x)=>n+x.qty,0),escapeHtml(s.paymentMethod),rupiah(s.total),`<span class="${s.syncStatus==="synced"?"status-local":"status-pending"}">${s.syncStatus==="synced"?"Tersinkron":"Belum tersinkron"}</span>`,
     s.status==="completed"?`<button class="small-action" data-cancel="${s.id}">Batalkan</button>`:`<span class="pill warning">Dibatalkan</span>`
   ]));
   $("transactionsTable").querySelectorAll("[data-cancel]").forEach(b=>b.addEventListener("click",()=>cancelSale(b.dataset.cancel)));
@@ -323,20 +393,43 @@ async function updateCanteenName() {
   await put("meta",{key:"canteenName",value});toast("Nama kantin disimpan pada perangkat ini.");
 }
 async function backupJson() {
-  const data={exportedAt:nowIso(),products:await getAll("products"),sales:await getAll("sales"),expenses:await getAll("expenses"),meta:await getAll("meta")};
+  const data={exportedAt:nowIso(),products:await getAll("products"),sales:await getAll("sales"),expenses:await getAll("expenses"),meta:await getAll("meta"),consignors:await getAll("consignors"),consignmentLog:await getAll("consignmentLog"),staff:await getAll("staff"),handovers:await getAll("handovers"),auditLogs:await getAll("auditLogs")};
   const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");
   a.href=url;a.download="faiisa-kantinku-backup.json";a.click();URL.revokeObjectURL(url);toast("Cadangan JSON diunduh.");
 }
 async function resetLocalData() {
   if(!confirm("Reset seluruh produk, transaksi, pengeluaran, dan pengaturan lokal? Tindakan ini tidak dapat dibatalkan. Unduh cadangan terlebih dahulu jika diperlukan."))return;
   for(const store of STORES)await clearStore(store);
-  cart=[];await seedDemoIfEmpty();await renderAll();toast("Data lokal direset ke data contoh.");
+  cart=[];await seedDemoIfEmpty();await seedStaffIfEmpty();await refreshLoginOptions();await renderAll();toast("Data lokal direset ke data contoh.");
+}
+async function lookupBarcodeOnline(code) {
+  try {
+    const controller=new AbortController(), timer=setTimeout(()=>controller.abort(),5000);
+    const response=await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json`,{signal:controller.signal,headers:{Accept:"application/json"}});
+    clearTimeout(timer);if(!response.ok)return null;
+    const data=await response.json();if(data.status!==1||!data.product)return null;
+    const product=data.product;
+    const name=(product.product_name_id||product.product_name||product.product_name_en||"").trim();
+    const category=(product.categories_tags||[]).map(x=>x.split(":").pop().replace(/-/g," ")).find(Boolean)||"Makanan";
+    return {name,category:category.charAt(0).toUpperCase()+category.slice(1)};
+  } catch(e) { return null; }
 }
 async function findBarcode(value) {
-  const code=value.trim();if(!code)return;
-  const products=await allProducts(),p=products.find(x=>x.barcode===code);
-  if(p){await addToCart(p.id);$("manualBarcode").value="";closeModal("scanModal");}
-  else {toast("Barcode tidak ditemukan. Tambahkan barcode pada menu Produk & Stok.",true);}
+  const code=String(value||"").trim();if(!code)return;
+  const products=await getAll("products"),p=products.find(x=>x.barcode===code);
+  if(p) {
+    if(scanPurpose==="addProduct") {closeModal("scanModal");await openProductModal(p);toast("Barcode sudah terdaftar. Data produk dibuka untuk diperiksa.");}
+    else if(p.active===false){toast("Produk ini sedang nonaktif. Aktifkan dulu di menu Produk & Stok.",true);}
+    else {await addToCart(p.id);$("manualBarcode").value="";closeModal("scanModal");}
+    return;
+  }
+  if(scanPurpose==="addProduct" || confirm(`Barcode ${code} belum terdaftar. Cari nama produk otomatis dan buka formulir produk baru?`)) {
+    $("scanHelp").textContent="Mencari nama produk dari basis data barcode…";
+    const found=await lookupBarcodeOnline(code);
+    closeModal("scanModal");await openProductModal();$("productBarcode").value=code;
+    if(found?.name){$("productName").value=found.name;$("productCategory").value=found.category||"Makanan";toast("Nama produk ditemukan. Periksa nama, harga, dan stok sebelum menyimpan.");}
+    else {$("productCategory").value="Makanan";$("productName").focus();toast("Nama otomatis tidak ditemukan. Silakan isi nama, kategori, harga, dan stok.",true);}
+  } else {toast("Barcode tidak ditemukan.",true);}
 }
 async function startCamera() {
   if(!navigator.mediaDevices?.getUserMedia){$("scanHelp").textContent="Browser tidak mendukung akses kamera. Gunakan kolom barcode manual atau scanner USB.";return;}
@@ -358,6 +451,9 @@ function stopCamera() {
 }
 function wireEvents() {
   $("nav").addEventListener("click",e=>{const b=e.target.closest("[data-page]");if(b)navigate(b.dataset.page);});
+  $("loginForm").addEventListener("submit",loginStaff);$("staffForm").addEventListener("submit",async e=>{e.preventDefault();const name=$("staffName").value.trim(),pin=$("staffPin").value,role=$("staffRole").value;if(!name||!/^[0-9]{4,6}$/.test(pin)){toast("Nama dan PIN 4–6 digit wajib diisi.",true);return;}if((await getAll("staff")).some(x=>x.name.toLowerCase()===name.toLowerCase())){toast("Nama petugas sudah digunakan.",true);return;}await put("staff",{id:uid("staff"),name,pin,role,active:true,createdAt:nowIso()});$("staffForm").reset();await renderStaff();await refreshLoginOptions();toast("Petugas ditambahkan.");});
+  $("handoverBtn").addEventListener("click",()=>{if(!activeStaff){toast("Silakan login terlebih dahulu.",true);return;}showModal("handoverModal");});$("handoverForm").addEventListener("submit",saveHandover);$("logoutBtn").addEventListener("click",logoutStaff);
+  $("addConsignorBtn").addEventListener("click",addConsignor);$("receiveConsignmentBtn").addEventListener("click",receiveConsignment);$("closeConsignmentDayBtn").addEventListener("click",closeConsignmentDay);$("productConsignor").addEventListener("change",()=>{if(!$("productConsignor").value){$("productOwnerPrice").value=0;}});
   document.querySelectorAll("[data-goto]").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.goto)));
   document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",()=>closeModal(b.dataset.close)));
   document.querySelectorAll(".modal-backdrop").forEach(m=>m.addEventListener("click",e=>{if(e.target===m)closeModal(m.id);}));
@@ -372,22 +468,19 @@ function wireEvents() {
   $("addExpenseBtn").addEventListener("click",()=>{ $("expenseDate").value=todayKey();showModal("expenseModal");});
   $("expenseForm").addEventListener("submit",addExpense);$("saveSettings").addEventListener("click",updateCanteenName);
   $("downloadBackup").addEventListener("click",backupJson);$("resetDemo").addEventListener("click",resetLocalData);
-  $("scanOpen").addEventListener("click",()=>{showModal("scanModal");$("manualBarcode").focus();});
+  $("scanOpen").addEventListener("click",()=>{scanPurpose="cashier";$("scanModalSubtitle").textContent="Scan untuk memasukkan produk ke keranjang kasir.";showModal("scanModal");$("manualBarcode").focus();});
+  $("scanForProduct").addEventListener("click",()=>{scanPurpose="addProduct";closeModal("productModal");$("scanModalSubtitle").textContent="Scan barcode untuk mencari atau mendaftarkan produk baru.";showModal("scanModal");$("manualBarcode").focus();});
   $("startCamera").addEventListener("click",startCamera);
   $("manualBarcodeForm").addEventListener("submit",e=>{e.preventDefault();findBarcode($("manualBarcode").value);});
   $("syncBtn").addEventListener("click",()=>toast(navigator.onLine?"Internet tersedia, tetapi Firebase belum dikonfigurasi. Data masih lokal.":"Sedang offline. Transaksi tersimpan di perangkat.",!navigator.onLine));
   window.addEventListener("online",updateConnection);window.addEventListener("offline",updateConnection);
-  // Barcode scanner USB usually behaves like a keyboard and ends with Enter.
-  document.addEventListener("keydown",e=>{
-    if(e.key==="Enter"&&document.activeElement.tagName!=="INPUT"&&document.activeElement.tagName!=="TEXTAREA"&&activePage==="kasir"){
-      // Avoid intercepting unrelated keyboard actions; scanner integration can be enabled via manual field.
-    }
-  });
+  // Scanner USB/Bluetooth configured as keyboard: focus the barcode field and scan; Enter submits it.
+  $("manualBarcode").addEventListener("focus",()=>{$("scanHelp").textContent="Siap menerima barcode dari kamera atau scanner USB/Bluetooth. Barcode baru akan dicari namanya secara online.";});
 }
 async function init() {
   $("todayText").textContent=new Date().toLocaleDateString("id-ID",{weekday:"short",day:"numeric",month:"short",year:"numeric"});
   $("expenseDate").value=todayKey();
-  try {db=await openDb();await seedDemoIfEmpty();const name=await getOne("meta","canteenName");if(name)$("canteenName").value=name.value;wireEvents();await renderAll();}
+  try {db=await openDb();await seedDemoIfEmpty();await seedStaffIfEmpty();await refreshLoginOptions();const name=await getOne("meta","canteenName");if(name)$("canteenName").value=name.value;wireEvents();await renderAll();}
   catch(e){console.error(e);toast("Database lokal tidak dapat dibuka. Gunakan browser modern dengan IndexedDB aktif.",true);}
   if("serviceWorker" in navigator && location.protocol.startsWith("http"))navigator.serviceWorker.register("./sw.js").catch(e=>console.warn("SW registration failed",e));
 }
