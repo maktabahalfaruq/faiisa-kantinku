@@ -74,8 +74,17 @@ function fmtDate(value, withTime=true) {
 function isToday(value) { return new Date(value).toLocaleDateString("en-CA")===todayKey(); }
 
 async function seedDemoIfEmpty() {
+  // Seed sample products only once. An intentionally empty catalog must stay empty
+  // after refresh; do not infer "first run" from the current product count alone.
+  const seeded=await getOne("meta","demoProductsInitialized");
+  if(seeded?.value===true) return;
   const existing=await getAll("products");
-  if(existing.length) return;
+  if(existing.length) {
+    // Existing installations already have a catalog; mark it initialized so
+    // deleting every product later does not restore the sample catalog.
+    await put("meta",{key:"demoProductsInitialized",value:true});
+    return;
+  }
   const demo=[
     ["Roti cokelat","Makanan","899001",1800,2500,24,5],
     ["Air mineral 600 ml","Minuman","899002",1800,3000,30,8],
@@ -91,6 +100,7 @@ async function seedDemoIfEmpty() {
     await put("products",{id:uid("prd"),name,category,barcode,cost,price,stock,minStock,active:true,createdAt:nowIso(),updatedAt:nowIso()});
   }
   await put("meta",{key:"canteenName",value:"Kantin Sekolah"});
+  await put("meta",{key:"demoProductsInitialized",value:true});
 }
 async function seedStaffIfEmpty() {
   if((await getAll("staff")).length) return;

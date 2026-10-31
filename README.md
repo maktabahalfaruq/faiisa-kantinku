@@ -1,4 +1,4 @@
-# FAIISA KantinKu — Prototipe 0.5
+# FAIISA KantinKu — Prototipe 0.5.1
 
 Prototipe aplikasi manajemen kantin sekolah untuk laptop/PC kasir dengan tampilan responsif. Versi ini melanjutkan fitur produk & stok, kasir, barcode, titip jual/konsinyasi, transaksi, keuangan, laporan, dan menambahkan rancangan login petugas serta pergantian shift.
 
@@ -6,6 +6,7 @@ Prototipe aplikasi manajemen kantin sekolah untuk laptop/PC kasir dengan tampila
 - Dashboard, kasir, katalog produk, stok, transaksi, keuangan, laporan.
 - Input barcode manual/scanner USB-Bluetooth (scanner bertindak seperti keyboard) dan kamera jika browser mendukung `BarcodeDetector` serta HTTPS/localhost.
 - Data lokal menggunakan IndexedDB dan dapat digunakan tanpa koneksi internet untuk fitur yang datanya sudah tersimpan.
+- Perbaikan 0.5.1: katalog contoh hanya dibuat satu kali; menghapus semua produk tidak akan memunculkannya kembali setelah refresh.
 - Titip jual: pencatatan penitip, penerimaan kiriman, penjualan, hak penitip, dan retur sisa harian.
 - Login lokal demo dengan pilihan nama dan PIN.
 - Penambahan/nonaktifkan akun petugas lokal.
