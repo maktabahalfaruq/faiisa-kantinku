@@ -45,3 +45,14 @@ Untuk pengalaman terbaik, gunakan Chrome/Edge versi terbaru, layar laptop minima
 6. Uji transaksi, barcode, printer struk, backup/restore, dan pemulihan saat listrik/internet terputus.
 
 **Jangan gunakan prototipe ini sebagai sistem kasir produksi atau sebagai sumber tunggal pembukuan sebelum tahap keamanan dan sinkronisasi selesai.**
+
+
+## Impor dan ekspor Excel (.xlsx) — versi 0.8
+- Menu Pengaturan menyediakan ekspor seluruh tabel lokal ke satu workbook Excel.
+- Sheet: Petunjuk, Produk, Transaksi, Pengeluaran, Pengaturan, Penitip, RiwayatTitipJual, Petugas, SerahTerima, dan LogAktivitas.
+- Template Excel kosong tersedia dengan nama sheet yang sama.
+- Impor membaca sheet yang dikenali, memvalidasi kunci utama, lalu menggabungkan data berdasarkan `id`, atau `key` untuk Pengaturan.
+- Impor tidak menghapus data yang tidak ada dalam file. Jika ID sama, record lokal akan diperbarui.
+- Buat cadangan sebelum impor massal. File hanya mencakup data lokal perangkat yang sedang digunakan.
+- SheetJS dimuat dari CDN jsDelivr; fitur Excel memerlukan internet saat library belum tersedia di cache browser.
+- Data belum dihimpun dari perangkat lain karena Firebase/cloud belum dikonfigurasi.

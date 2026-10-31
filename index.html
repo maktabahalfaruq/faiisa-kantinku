@@ -30,7 +30,7 @@
       </nav>
       <div class="sidebar-bottom">
         <div class="connection"><i id="connectionDot"></i><span id="connectionText">Memeriksa koneksi…</span></div>
-        <small>Prototipe 0.6 · UI/UX</small>
+        <small>Prototipe 0.7 · UI/UX</small>
       </div>
     </aside>
 
@@ -161,6 +161,17 @@
           <div class="panel settings-card"><div class="settings-icon">▦</div><h3>Identitas kantin</h3><p>Nama yang tampil pada dashboard dan struk.</p><label class="field-label" for="canteenName">Nama kantin</label><input id="canteenName" value="Kantin Sekolah"><button class="primary-btn" id="saveSettings">Simpan nama</button></div>
           <div class="panel settings-card"><div class="settings-icon">☁</div><h3>Database cloud</h3><p>Firebase belum dikonfigurasi. Aplikasi prototipe ini belum menyinkronkan data ke perangkat pengelola.</p><div class="config-status"><i></i><span id="firebaseStatus">Belum dikonfigurasi</span></div><small>Ikuti README untuk langkah konfigurasi sebelum digunakan secara online.</small></div>
           <div class="panel settings-card"><div class="settings-icon">↻</div><h3>Data lokal</h3><p>Data contoh dan transaksi tersimpan di browser ini menggunakan IndexedDB.</p><button class="outline-btn" id="downloadBackup">Unduh cadangan JSON</button><button class="outline-btn danger-outline" id="resetDemo">Reset data lokal</button></div>
+          <div class="panel settings-card excel-tools-card">
+            <div class="settings-icon">▤</div><h3>Impor & ekspor Excel</h3>
+            <p>Cadangkan seluruh data KantinKu dalam satu workbook Excel, atau gabungkan data dari file Excel sebelumnya.</p>
+            <div class="excel-actions">
+              <button class="primary-btn" id="exportExcelBtn">Unduh semua data (.xlsx)</button>
+              <button class="outline-btn" id="importExcelBtn">Impor file Excel</button>
+              <button class="text-btn" id="templateExcelBtn">Unduh template Excel kosong</button>
+              <input id="importExcelFile" type="file" accept=".xlsx,.xls" hidden>
+            </div>
+            <small>Impor akan menambahkan atau memperbarui data berdasarkan ID/kunci. Data yang tidak ada di file tidak dihapus. Gunakan file cadangan sebelum impor massal.</small>
+          </div>
           <div class="panel settings-card"><div class="settings-icon">⌁</div><h3>Keamanan</h3><p>Jangan gunakan akun bersama. Versi produksi perlu autentikasi, aturan akses database, pencatatan aktivitas, dan prosedur pencadangan.</p><span class="pill warning">Perlu konfigurasi produksi</span></div>
         </div>
       </section>
@@ -222,6 +233,7 @@
     </div>
   </div>
   <div id="toastRegion" class="toast-region" aria-live="polite"></div>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

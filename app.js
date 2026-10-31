@@ -459,6 +459,64 @@ function stopCamera() {
   scanLoop=false;if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null;}
   $("scanVideo").pause();$("scanVideo").srcObject=null;$("scanVideo").classList.remove("active");
 }
+
+const EXCEL_SHEETS = [
+  ["Produk","products"],["Transaksi","sales"],["Pengeluaran","expenses"],
+  ["Pengaturan","meta"],["Penitip","consignors"],["RiwayatTitipJual","consignmentLog"],
+  ["Petugas","staff"],["SerahTerima","handovers"],["LogAktivitas","auditLogs"]
+];
+function requireXlsx() {
+  if(!window.XLSX) {
+    toast("Fitur Excel memerlukan koneksi internet untuk memuat komponen Excel. Silakan sambungkan internet lalu muat ulang.",true);
+    return false;
+  }
+  return true;
+}
+async function downloadWorkbook(includeData=true) {
+  if(!requireXlsx()) return;
+  const wb=XLSX.utils.book_new();
+  const info=[{Bagian:"FAIISA KantinKu",Keterangan:"Workbook data aplikasi"},{Bagian:"Dibuat",Keterangan:new Date().toLocaleString("id-ID")},{Bagian:"Petunjuk",Keterangan:"Jangan mengubah kolom id/key. Impor menggabungkan data; data yang tidak ada di file tidak dihapus."}];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(info),"Petunjuk");
+  for(const [sheet,store] of EXCEL_SHEETS) {
+    const rows=includeData ? await getAll(store) : [];
+    const ws=rows.length ? XLSX.utils.json_to_sheet(rows) : XLSX.utils.aoa_to_sheet([store==="meta"?["key","value"]:["id"]]);
+    XLSX.utils.book_append_sheet(wb,ws,sheet);
+  }
+  const stamp=new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb,`FAIISA_KantinKu_${includeData?"Cadangan":"Template"}_${stamp}.xlsx`);
+  toast(includeData?"File Excel seluruh data berhasil dibuat.":"Template Excel berhasil dibuat.");
+}
+async function exportAllExcel(){try{await downloadWorkbook(true);}catch(e){console.error(e);toast("Ekspor Excel gagal. Periksa koneksi dan coba lagi.",true);}}
+async function importAllExcel(file) {
+  if(!requireXlsx()||!file)return;
+  try {
+    const wb=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:true});
+    const parsed=[],stats=[];
+    for(const [sheet,store] of EXCEL_SHEETS) {
+      if(!wb.Sheets[sheet])continue;
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[sheet],{defval:null,raw:false});
+      const key=store==="meta"?"key":"id";
+      if(rows.some(row=>row[key]===null||row[key]===undefined||String(row[key]).trim()===""))throw new Error(`Sheet ${sheet}: ada baris tanpa kolom ${key}.`);
+      parsed.push({sheet,store,key,rows});
+      stats.push(`${sheet}: ${rows.length} baris`);
+    }
+    if(!parsed.length)throw new Error("Sheet data KantinKu tidak ditemukan. Gunakan workbook atau template resmi.");
+    if(!confirm(`Periksa data yang akan diimpor:\n\n${stats.join("\n")}\n\nData dengan ID/kunci sama akan diperbarui. Data lain tetap dipertahankan. Tidak ada data yang dihapus.\n\nLanjutkan impor?`))return;
+    for(const g of parsed)for(const row of g.rows) {
+      row[g.key]=String(row[g.key]);
+      if(g.store==="products") {
+        if(!row.name||!row.category)throw new Error("Sheet Produk: nama dan kategori wajib diisi.");
+        for(const f of ["cost","price","stock"])if(row[f]!==null&&row[f]!==undefined&&row[f]!==""&&!Number.isFinite(Number(row[f])))throw new Error(`Sheet Produk: ${f} harus berupa angka.`);
+        for(const f of ["cost","price","stock"])if(row[f]!==null&&row[f]!==undefined&&row[f]!=="")row[f]=Number(row[f]);
+      }
+    }
+    let count=0;
+    for(const g of parsed)for(const row of g.rows){await put(g.store,row);count++;}
+    await renderAll();await refreshLoginOptions();
+    toast(`Impor selesai: ${count} baris dari ${parsed.length} sheet.`);
+  }catch(e){console.error(e);toast(e.message||"File Excel tidak dapat diimpor.",true);}
+}
+
 function wireEvents() {
   $("nav").addEventListener("click",e=>{const b=e.target.closest("[data-page]");if(b)navigate(b.dataset.page);});
   $("loginForm").addEventListener("submit",loginStaff);$("staffForm").addEventListener("submit",async e=>{e.preventDefault();const name=$("staffName").value.trim(),pin=$("staffPin").value,role=$("staffRole").value;if(!name||!/^[0-9]{4,6}$/.test(pin)){toast("Nama dan PIN 4–6 digit wajib diisi.",true);return;}if((await getAll("staff")).some(x=>x.name.toLowerCase()===name.toLowerCase())){toast("Nama petugas sudah digunakan.",true);return;}await put("staff",{id:uid("staff"),name,pin,role,active:true,createdAt:nowIso()});$("staffForm").reset();await renderStaff();await refreshLoginOptions();toast("Petugas ditambahkan.");});
@@ -478,6 +536,10 @@ function wireEvents() {
   $("addExpenseBtn").addEventListener("click",()=>{ $("expenseDate").value=todayKey();showModal("expenseModal");});
   $("expenseForm").addEventListener("submit",addExpense);$("saveSettings").addEventListener("click",updateCanteenName);
   $("downloadBackup").addEventListener("click",backupJson);$("resetDemo").addEventListener("click",resetLocalData);
+  $("exportExcelBtn").addEventListener("click",exportAllExcel);
+  $("templateExcelBtn").addEventListener("click",()=>downloadWorkbook(false));
+  $("importExcelBtn").addEventListener("click",()=>$("importExcelFile").click());
+  $("importExcelFile").addEventListener("change",async e=>{const file=e.target.files?.[0];if(file)await importAllExcel(file);e.target.value="";});
   $("scanOpen").addEventListener("click",()=>{scanPurpose="cashier";$("scanModalSubtitle").textContent="Scan untuk memasukkan produk ke keranjang kasir.";showModal("scanModal");$("manualBarcode").focus();});
   $("scanForProduct").addEventListener("click",()=>{scanPurpose="addProduct";closeModal("productModal");$("scanModalSubtitle").textContent="Scan barcode untuk mencari atau mendaftarkan produk baru.";showModal("scanModal");$("manualBarcode").focus();});
   $("startCamera").addEventListener("click",startCamera);

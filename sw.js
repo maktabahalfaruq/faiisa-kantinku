@@ -1,4 +1,4 @@
-const CACHE_NAME = 'faiisa-kantinku-v0-6-uiux';
+const CACHE_NAME = 'faiisa-kantinku-v0-8-excel';
 const SHELL = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.webmanifest"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(SHELL)));
