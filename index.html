@@ -75,8 +75,9 @@
       <section class="page" id="page-kasir">
         <div class="cashier-layout">
           <div class="panel products-panel">
-            <div class="panel-head"><div><h3>Pilih produk</h3><p>Ketuk produk untuk memasukkan ke keranjang</p></div><button class="outline-btn" id="scanOpen">▦ Pindai barcode</button></div>
-            <div class="product-tools"><input id="productSearch" placeholder="Cari nama atau barcode…" autocomplete="off"><select id="categoryFilter"><option value="">Semua kategori</option></select></div>
+            <div class="panel-head"><div><h3>Pilih produk</h3><p>Ketuk produk untuk memasukkan ke keranjang</p></div><div class="cashier-shortcuts"><button class="outline-btn" id="scannerAutoToggle" aria-pressed="false">Aktifkan Auto-Scan</button><button class="outline-btn" id="scanOpen">▦ Pindai barcode</button></div></div>
+            <div class="scanner-status" id="scannerStatus">Auto-Scan mati. Klik tombol untuk mengaktifkan.</div>
+            <div class="product-tools"><button class="outline-btn" id="quickConsignmentBtn">Jajanan Titipan</button><input id="productSearch" placeholder="Cari nama atau barcode…" autocomplete="off"><select id="categoryFilter"><option value="">Semua kategori</option></select></div>
             <div id="cashierProducts" class="product-grid"></div>
           </div>
           <div class="panel cart-panel">

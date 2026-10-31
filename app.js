@@ -13,6 +13,12 @@ let barcodeDetector = null;
 let scanPurpose = "cashier";
 let activePage = "dashboard";
 let activeStaff = null;
+let scannerAutoMode = false;
+let scannerBuffer = "";
+let scannerLastKeyAt = 0;
+let scannerLastCode = "";
+let scannerLastCodeAt = 0;
+let consignmentQuickFilter = false;
 
 const $ = id => document.getElementById(id);
 const rupiah = value => new Intl.NumberFormat("id-ID", {style:"currency", currency:"IDR", maximumFractionDigits:0}).format(Number(value)||0);
@@ -195,9 +201,11 @@ async function renderCategories() {
 }
 async function renderCashierProducts() {
   const products=await allProducts(), q=$("productSearch").value.trim().toLowerCase(), cat=$("categoryFilter").value;
-  const filtered=products.filter(p=>(!q||p.name.toLowerCase().includes(q)||(p.barcode||"").toLowerCase().includes(q))&&(!cat||p.category===cat));
-  $("cashierProducts").innerHTML=filtered.map(p=>`<button class="product-card" data-add="${p.id}" ${p.stock<=0?"disabled":""}><div class="product-symbol">${escapeHtml((p.name||"?").slice(0,1).toUpperCase())}</div><strong>${escapeHtml(p.name)}</strong><small>${escapeHtml(p.category)} · stok ${p.stock}</small><div class="price">${rupiah(p.price)}</div></button>`).join("")||'<div class="empty-state">Produk tidak ditemukan.</div>';
+  const filtered=products.filter(p=>(!consignmentQuickFilter||!!p.consignorId)&&(!q||p.name.toLowerCase().includes(q)||(p.barcode||"").toLowerCase().includes(q))&&(!cat||p.category===cat));
+  $("cashierProducts").innerHTML=filtered.map(p=>`<button class="product-card" data-add="${p.id}" ${p.stock<=0?"disabled":""}><div class="product-symbol">${escapeHtml((p.name||"?").slice(0,1).toUpperCase())}</div><strong>${escapeHtml(p.name)}</strong><small>${p.consignorId?'<span class="pill consignment-pill">Titipan</span> · ':''}${escapeHtml(p.category)} · stok ${p.stock}</small><div class="price">${rupiah(p.price)}</div></button>`).join("")||'<div class="empty-state">Produk tidak ditemukan pada pilihan ini.</div>';
   $("cashierProducts").querySelectorAll("[data-add]").forEach(btn=>btn.addEventListener("click",()=>addToCart(btn.dataset.add)));
+  const quick=$("quickConsignmentBtn");
+  if(quick){quick.classList.toggle("active-filter",consignmentQuickFilter);quick.textContent=consignmentQuickFilter?"✓ Jajanan Titipan":"Jajanan Titipan";}
 }
 async function addToCart(id) {
   const p=await getOne("products",id);if(!p||p.stock<=0){toast("Stok produk habis.",true);return;}
@@ -517,6 +525,39 @@ async function importAllExcel(file) {
   }catch(e){console.error(e);toast(e.message||"File Excel tidak dapat diimpor.",true);}
 }
 
+function setScannerAutoMode(enabled) {
+  scannerAutoMode=!!enabled;scannerBuffer="";scannerLastKeyAt=0;
+  const b=$("scannerAutoToggle");
+  if(b){b.classList.toggle("scanner-on",scannerAutoMode);b.setAttribute("aria-pressed",String(scannerAutoMode));b.textContent=scannerAutoMode?"✓ Auto-Scan Aktif":"Aktifkan Auto-Scan";}
+  const status=$("scannerStatus");
+  if(status){status.classList.toggle("is-active",scannerAutoMode);status.textContent=scannerAutoMode?"Scanner siap. Arahkan barcode ke scanner.":"Auto-Scan mati. Klik tombol untuk mengaktifkan.";}
+  if(scannerAutoMode) document.activeElement?.blur();
+}
+async function handleGlobalScannerKey(e) {
+  if(!scannerAutoMode||activePage!=="kasir"||$("scanModal").classList.contains("open"))return;
+  const target=e.target;
+  if(target && (target.isContentEditable||["INPUT","TEXTAREA","SELECT","BUTTON"].includes(target.tagName)))return;
+  const now=performance.now();
+  if(e.key==="Enter") {
+    const code=scannerBuffer;scannerBuffer="";scannerLastKeyAt=0;
+    if(code.length>=6) {
+      e.preventDefault();
+      if(code===scannerLastCode&&now-scannerLastCodeAt<80)return;
+      scannerLastCode=code;scannerLastCodeAt=now;
+      const p=(await getAll("products")).find(x=>String(x.barcode||"").trim()===code);
+      if(!p){toast(`Barcode ${code} belum terdaftar. Daftarkan melalui Produk & Stok.`,true);return;}
+      if(p.active===false){toast("Produk nonaktif. Aktifkan dahulu di Produk & Stok.",true);return;}
+      await addToCart(p.id);
+    }
+    return;
+  }
+  if(e.key.length!==1)return;
+  if(scannerLastKeyAt && now-scannerLastKeyAt>100)scannerBuffer="";
+  scannerLastKeyAt=now;
+  if(/^[0-9A-Za-z]$/.test(e.key)){e.preventDefault();scannerBuffer+=e.key;}
+  if(scannerBuffer.length>80)scannerBuffer="";
+}
+
 function wireEvents() {
   $("nav").addEventListener("click",e=>{const b=e.target.closest("[data-page]");if(b)navigate(b.dataset.page);});
   $("loginForm").addEventListener("submit",loginStaff);$("staffForm").addEventListener("submit",async e=>{e.preventDefault();const name=$("staffName").value.trim(),pin=$("staffPin").value,role=$("staffRole").value;if(!name||!/^[0-9]{4,6}$/.test(pin)){toast("Nama dan PIN 4–6 digit wajib diisi.",true);return;}if((await getAll("staff")).some(x=>x.name.toLowerCase()===name.toLowerCase())){toast("Nama petugas sudah digunakan.",true);return;}await put("staff",{id:uid("staff"),name,pin,role,active:true,createdAt:nowIso()});$("staffForm").reset();await renderStaff();await refreshLoginOptions();toast("Petugas ditambahkan.");});
@@ -526,6 +567,9 @@ function wireEvents() {
   document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",()=>closeModal(b.dataset.close)));
   document.querySelectorAll(".modal-backdrop").forEach(m=>m.addEventListener("click",e=>{if(e.target===m)closeModal(m.id);}));
   $("mobileMenu").addEventListener("click",()=>$("sidebar").classList.toggle("open"));
+  $("scannerAutoToggle").addEventListener("click",()=>setScannerAutoMode(!scannerAutoMode));
+  $("quickConsignmentBtn").addEventListener("click",()=>{consignmentQuickFilter=!consignmentQuickFilter;$("productSearch").value="";$("categoryFilter").value="";renderCashierProducts();});
+  document.addEventListener("keydown",handleGlobalScannerKey);
   $("productSearch").addEventListener("input",renderCashierProducts);$("categoryFilter").addEventListener("change",renderCashierProducts);
   $("cashReceived").addEventListener("input",renderCart);$("paymentMethod").addEventListener("change",renderCart);
   $("clearCart").addEventListener("click",()=>{cart=[];renderCart();});

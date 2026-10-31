@@ -74,3 +74,16 @@ input,select{min-height:44px;padding:10px 13px;border-radius:10px}
 .excel-tools-card small{display:block;line-height:1.55;color:var(--muted);max-width:680px}
 .excel-tools-card .text-btn{padding:7px 0;text-align:left}
 @media(max-width:760px){.excel-tools-card .excel-actions{display:grid;grid-template-columns:1fr}.excel-tools-card .excel-actions button{width:100%}}
+
+.cashier-shortcuts{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.scanner-status{margin:-7px 0 14px;padding:9px 12px;border-radius:10px;background:#f2f5f4;color:#657672;font-size:12px}
+.scanner-status.is-active{background:#e3f5ef;color:#087f73;font-weight:600}
+#scannerAutoToggle.scanner-on{background:#087f73;border-color:#087f73;color:#fff}
+#quickConsignmentBtn.active-filter{background:#e2f5ef;border-color:#087f73;color:#087f73;font-weight:700}
+.consignment-pill{background:#e8f5ef;color:#087f73;padding:2px 6px;font-size:10px;border-radius:999px}
+@media(max-width:760px){
+ .cashier-shortcuts{width:100%;justify-content:stretch}
+ .cashier-shortcuts button{flex:1;min-width:0;font-size:11px;padding:8px}
+ .scanner-status{font-size:11px;margin:0 0 12px}
+ #quickConsignmentBtn{width:100%;justify-content:center}
+}

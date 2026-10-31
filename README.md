@@ -56,3 +56,12 @@ Untuk pengalaman terbaik, gunakan Chrome/Edge versi terbaru, layar laptop minima
 - Buat cadangan sebelum impor massal. File hanya mencakup data lokal perangkat yang sedang digunakan.
 - SheetJS dimuat dari CDN jsDelivr; fitur Excel memerlukan internet saat library belum tersedia di cache browser.
 - Data belum dihimpun dari perangkat lain karena Firebase/cloud belum dikonfigurasi.
+
+
+## Auto-Scan dan jalur cepat jajanan titipan — versi 0.9
+- Di menu Kasir, tombol **Aktifkan Auto-Scan** mengaktifkan pembacaan scanner USB/Bluetooth tipe keyboard-wedge tanpa harus mengklik kolom input barcode setiap kali scan.
+- Scanner harus mengirim karakter barcode dan akhiran Enter/Return. Mode ini menangkap scan saat halaman Kasir aktif dan fokus tidak berada pada input/form/button lain. Scan hanya menerima barcode yang sudah terdaftar; barcode tidak dikenal tidak otomatis membuat produk.
+- Saat mode aktif, karakter hasil scan diproses sebagai satu barcode setelah scanner mengirim Enter. Matikan mode sebelum mengetik biasa di area halaman.
+- Tombol **Jajanan Titipan** menyaring katalog kasir ke produk yang sudah terdaftar sebagai produk titipan. Petugas cukup mengetuk kartu produk; nama/harga tidak perlu diketik saat antrean.
+- Daftarkan produk titipan dan penitip terlebih dahulu, lalu gunakan **Terima kiriman** untuk memasukkan jumlah stok harian. Penjualan mengurangi stok dan masuk rekap hak penitip sesuai harga/ketentuan produk.
+- Tetap uji dengan scanner fisik karena beberapa scanner perlu konfigurasi suffix Enter. Auto-Scan adalah fitur lokal browser; belum mengubah batasan cloud/sinkronisasi.
